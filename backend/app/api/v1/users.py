@@ -1,32 +1,63 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
-from app.db.session import SessionLocal
-from app.models import User
-from app.schemas import UserCreate, UserResponse
+from app import models, schemas
+from app.api.deps import get_db
+from app.services import library
 
 router = APIRouter()
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+@router.post("/users", response_model=schemas.UserResponse, status_code=201)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    return library.create_user(db, user)
 
 
-@router.post("/users", response_model=UserResponse)
-def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = User(**user.dict())
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-
-@router.get("/users/{user_id}", response_model=UserResponse)
-def read_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
+@router.post("/auth/login", response_model=schemas.UserResponse)
+def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == payload.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+
+@router.get("/users", response_model=list[schemas.UserResponse])
+def list_users(
+    role: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.User)
+    if role:
+        query = query.filter(models.User.role == role)
+    if q:
+        like = f"%{q.lower()}%"
+        query = query.filter(
+            models.User.full_name.ilike(like) | models.User.email.ilike(like)
+        )
+    return query.order_by(models.User.joined_at.desc()).all()
+
+
+@router.get("/users/{user_id}", response_model=schemas.UserResponse)
+def read_user(user_id: int, db: Session = Depends(get_db)):
+    return library._get_user_or_404(db, user_id)
+
+
+@router.patch("/users/{user_id}", response_model=schemas.UserResponse)
+def patch_user(user_id: int, payload: schemas.UserUpdate, db: Session = Depends(get_db)):
+    return library.update_user(db, user_id, payload)
+
+
+@router.patch("/users/{user_id}/toggle-blacklist", response_model=schemas.UserResponse)
+def toggle_blacklist(user_id: int, db: Session = Depends(get_db)):
+    user = library._get_user_or_404(db, user_id)
+    user.blacklisted = not user.blacklisted
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.delete("/users/{user_id}", status_code=204, response_class=Response)
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    user = library._get_user_or_404(db, user_id)
+    db.delete(user)
+    db.commit()

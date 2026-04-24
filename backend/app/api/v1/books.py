@@ -1,32 +1,46 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
-from app.db.session import SessionLocal
-from app.models import Book
-from app.schemas import BookCreate, BookResponse
+from app import models, schemas
+from app.api.deps import get_db
+from app.services import library
 
 router = APIRouter()
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+@router.post("/books", response_model=schemas.BookResponse, status_code=201)
+def create_book(book: schemas.BookCreate, db: Session = Depends(get_db)):
+    return library.create_book(db, book)
 
 
-@router.post("/books", response_model=BookResponse)
-def create_book(book: BookCreate, db: Session = Depends(get_db)):
-    db_book = Book(**book.dict())
-    db.add(db_book)
-    db.commit()
-    db.refresh(db_book)
-    return db_book
+@router.get("/books", response_model=list[schemas.BookResponse])
+def list_books(
+    q: str | None = Query(default=None),
+    genre: str | None = Query(default=None),
+    available_only: bool = Query(default=False),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.Book)
+    if q:
+        like = f"%{q.lower()}%"
+        query = query.filter(models.Book.title.ilike(like) | models.Book.author.ilike(like))
+    if genre:
+        query = query.filter(models.Book.genre == genre)
+    books = query.order_by(models.Book.title.asc()).all()
+    if available_only:
+        return [book for book in books if book.available_copies > 0]
+    return books
 
 
-@router.get("/books/{book_id}", response_model=BookResponse)
+@router.get("/books/{book_id}", response_model=schemas.BookResponse)
 def read_book(book_id: int, db: Session = Depends(get_db)):
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-    return book
+    return library._get_book_or_404(db, book_id)
+
+
+@router.patch("/books/{book_id}", response_model=schemas.BookResponse)
+def patch_book(book_id: int, payload: schemas.BookUpdate, db: Session = Depends(get_db)):
+    return library.update_book(db, book_id, payload)
+
+
+@router.delete("/books/{book_id}", status_code=204, response_class=Response)
+def remove_book(book_id: int, db: Session = Depends(get_db)):
+    library.delete_book(db, book_id)
