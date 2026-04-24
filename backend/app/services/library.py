@@ -41,7 +41,7 @@ def create_user(db: Session, payload: schemas.UserCreate) -> models.User:
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
 
-    user = models.User(**payload.dict())
+    user = models.User(**payload.model_dump())
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -50,7 +50,7 @@ def create_user(db: Session, payload: schemas.UserCreate) -> models.User:
 
 def update_user(db: Session, user_id: int, payload: schemas.UserUpdate) -> models.User:
     user = _get_user_or_404(db, user_id)
-    updates = payload.dict(exclude_unset=True)
+    updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(user, field, value)
     db.commit()
@@ -63,7 +63,7 @@ def create_book(db: Session, payload: schemas.BookCreate) -> models.Book:
     if existing:
         raise HTTPException(status_code=409, detail="Book with this ISBN already exists")
 
-    book = models.Book(**payload.dict())
+    book = models.Book(**payload.model_dump())
     db.add(book)
     db.commit()
     db.refresh(book)
@@ -72,7 +72,7 @@ def create_book(db: Session, payload: schemas.BookCreate) -> models.Book:
 
 def update_book(db: Session, book_id: int, payload: schemas.BookUpdate) -> models.Book:
     book = _get_book_or_404(db, book_id)
-    updates = payload.dict(exclude_unset=True)
+    updates = payload.model_dump(exclude_unset=True)
 
     if "isbn" in updates and updates["isbn"] != book.isbn:
         existing = db.query(models.Book).filter(models.Book.isbn == updates["isbn"]).first()

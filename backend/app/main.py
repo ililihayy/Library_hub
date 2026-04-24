@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import books, users, loans
+from app.api.v1 import auth, books, users, loans
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
@@ -16,6 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router, prefix=settings.API_PREFIX)
 app.include_router(books.router, prefix=settings.API_PREFIX, tags=["Books"])
 app.include_router(users.router, prefix=settings.API_PREFIX, tags=["Users"])
 app.include_router(loans.router, prefix=settings.API_PREFIX, tags=["Loans"])

@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   backend:
     build:
@@ -12,6 +10,8 @@ services:
       DATABASE_URL: sqlite:////data/library_hub.db
       API_PREFIX: /api/v1
       PROJECT_NAME: Library Hub API
+      SECRET_KEY: ${SECRET_KEY:-dev-only-change-in-production}
+      MFA_EMAIL_LOG_CODE_IN_DEV: "true"
     volumes:
       - backend_data:/data
     restart: unless-stopped
@@ -20,6 +20,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000/api/v1
     container_name: library_hub_frontend
     ports:
       - "8080:80"

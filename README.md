@@ -11,7 +11,7 @@ Library Hub is a full-stack library management project with:
 
 - UI pages for readers and librarians
 - State/store and domain types in `frontend/src/lib`
-- Currently uses local store behavior for demo interactions
+- Without `VITE_API_URL`, the app uses a local demo store. With `VITE_API_URL=http://localhost:8000/api/v1`, sign-up and sign-in use the backend (bcrypt passwords + optional TOTP MFA).
 
 ### Backend
 
@@ -65,8 +65,22 @@ See:
 
 Base path: `/api/v1`
 
+### Auth (passwords + MFA)
+
+- `POST /auth/register` — self-registration; body includes `password` and `confirmPassword` (must match); password stored as bcrypt hash.
+- `POST /auth/login` — email + password; if MFA is enabled, returns `{ "step": "mfa", "challengeToken": "..." }` unless `mfaCode` is included.
+- `POST /auth/login/mfa` — complete login with `challengeToken` + `mfaCode`.
+- `POST /auth/mfa/setup` — after verifying email + password, sends a **6-digit code by email**, then returns TOTP `otpauthUri` and `secret` (configure `SMTP_*`, or `MFA_EMAIL_LOG_CODE_IN_DEV=true` for dev).
+- `POST /auth/mfa/confirm` — body: `emailCode` (from email) + `mfaCode` (from authenticator) + email + password; then MFA is enabled.
+- `POST /auth/mfa/disable` — turn off MFA (requires password + current TOTP code).
+
+Set `SECRET_KEY` in the environment for production (JWT used for MFA challenge tokens).
+
+Create a librarian account from the shell: see **`backend/README.md`** → *Create an admin (librarian) user* (`python scripts/create_admin.py`).
+
+### Other
+
 - `POST /users`
-- `POST /auth/login`
 - `GET /users`
 - `PATCH /users/{user_id}`
 - `PATCH /users/{user_id}/toggle-blacklist`

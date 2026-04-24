@@ -15,6 +15,12 @@ class User(Base):
     role = Column(String, default="reader", nullable=False)
     blacklisted = Column(Boolean, default=False, nullable=False)
     joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    hashed_password = Column(String, nullable=True)
+    mfa_secret = Column(String, nullable=True)
+    mfa_enabled = Column(Boolean, default=False, nullable=False)
+    # Email confirmation step before MFA is fully enabled (hashed 6-digit code)
+    mfa_email_code_hash = Column(String, nullable=True)
+    mfa_email_code_expires_at = Column(DateTime, nullable=True)
 
     loans = relationship("Loan", back_populates="user", cascade="all, delete-orphan")
 
